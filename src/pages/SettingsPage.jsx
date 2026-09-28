@@ -94,7 +94,8 @@ export default function SettingsPage() {
               <p className="text-[11px] text-sky-200/80 leading-relaxed">
                 The app runs over HTTPS, so use the broker's <span className="font-semibold">secure WebSocket (wss://)</span> port — for
                 HiveMQ that's <span className="font-mono">8884</span> (not 1883, which is raw TCP and blocked by the browser). HiveMQ
-                Cloud needs the path <span className="font-mono">/mqtt</span>; the public broker can leave it blank.
+                (public broker and Cloud) needs the path <span className="font-mono">/mqtt</span> — it's added automatically if you
+                leave it blank.
               </p>
             </div>
 

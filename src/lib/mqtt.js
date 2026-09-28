@@ -1,6 +1,7 @@
 // Minimal MQTT 3.1.1 client over WebSocket (CONNECT / SUBSCRIBE / PUBLISH / PING).
 
 const MAX_RETRY_MS = 15000
+const CONNECT_TIMEOUT_MS = 15000
 const STATES_KEY = 'lightnest.states'
 
 // Last payload seen per topic, kept across reloads so each light shows its last known state.
@@ -85,7 +86,9 @@ export function buildBrokerUrl(host, port, path) {
   let url = 'wss://' + h
   const p = (port || '').trim()
   if (p) url += ':' + p
-  const pa = (path || '').trim()
+  let pa = (path || '').trim()
+  // HiveMQ (public broker and Cloud) only answers WebSocket clients on /mqtt.
+  if (!pa && /(^|\.)hivemq\.(com|cloud)$/i.test(h)) pa = '/mqtt'
   if (pa) url += (pa.startsWith('/') ? '' : '/') + pa
   return url
 }
@@ -190,6 +193,7 @@ class MqttClient {
 
   _teardown() {
     this._stopPing()
+    clearTimeout(this.connectTimer)
     if (this.ws) {
       const ws = this.ws
       this.ws = null
@@ -206,8 +210,8 @@ class MqttClient {
       this._setStatus('offline')
       return
     }
-    this._setStatus('connecting')
     this.lastError = ''
+    this._setStatus('connecting')
     let ws
     try {
       ws = new WebSocket(url, ['mqtt'])
@@ -220,6 +224,15 @@ class MqttClient {
     }
     this.ws = ws
     this.buf = new Uint8Array(0)
+
+    // A wrong port or path often leaves the socket hanging instead of failing; give up with a clear error.
+    this.connectTimer = setTimeout(() => {
+      if (this.ws !== ws || this.status === 'connected') return
+      this.lastError = 'Broker did not respond — check host, port and path'
+      this._teardown()
+      this._setStatus('offline')
+      this._scheduleRetry()
+    }, CONNECT_TIMEOUT_MS)
 
     ws.onopen = () => {
       try {
@@ -238,16 +251,17 @@ class MqttClient {
       if (e.data instanceof ArrayBuffer) this._onData(e.data)
     }
     ws.onerror = () => {
-      if (this.status !== 'connected') this.lastError = 'Cannot reach broker'
+      if (this.status !== 'connected' && !this.lastError) this.lastError = 'Cannot reach broker'
     }
     ws.onclose = () => {
       this._stopPing()
+      clearTimeout(this.connectTimer)
       if (this.ws === ws) this.ws = null
       if (this.wantClose) {
         this._setStatus('offline')
       } else {
-        this._setStatus('offline')
         if (!this.lastError) this.lastError = 'Connection closed'
+        this._setStatus('offline')
         this._scheduleRetry()
       }
     }
@@ -320,6 +334,7 @@ class MqttClient {
       // CONNACK
       const code = body.length >= 2 ? body[1] : 255
       if (code === 0) {
+        clearTimeout(this.connectTimer)
         this.retryCount = 0
         this.lastError = ''
         this._setStatus('connected')
