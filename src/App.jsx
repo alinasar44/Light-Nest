@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import { HashRouter, Navigate, NavLink, Route, Routes, useNavigate } from 'react-router-dom'
-import { LogOut, Plus, Settings, ShieldCheck, User, Zap } from 'lucide-react'
+import { LogOut, PlugZap, Plus, Settings, ShieldCheck, User, Zap } from 'lucide-react'
 import StatusBadge from './components/StatusBadge.jsx'
 import RoomDialog from './components/RoomDialog.jsx'
 import RoomPage from './pages/RoomPage.jsx'
 import SettingsPage from './pages/SettingsPage.jsx'
 import LoginPage from './pages/LoginPage.jsx'
+import ConnectionPage from './pages/ConnectionPage.jsx'
 import { AuthProvider, useAuth } from './lib/auth.jsx'
 import { roomIcon } from './lib/rooms.js'
 import { SettingsProvider, useSettings } from './lib/settings.jsx'
@@ -60,14 +61,12 @@ function Layout() {
           )}
         </nav>
 
-        {isAdmin && (
-          <div className="px-3 mt-4 pt-4 border-t border-white/5">
-            <NavLink to="/settings" className={({ isActive }) => sideLink(isActive)}>
-              <Settings className="w-5 h-5" />
-              Settings
-            </NavLink>
-          </div>
-        )}
+        <div className="px-3 mt-4 pt-4 border-t border-white/5">
+          <NavLink to={isAdmin ? '/settings' : '/connection'} className={({ isActive }) => sideLink(isActive)}>
+            {isAdmin ? <Settings className="w-5 h-5" /> : <PlugZap className="w-5 h-5" />}
+            {isAdmin ? 'Settings' : 'Connection'}
+          </NavLink>
+        </div>
         <div className="mt-auto px-3 py-4 space-y-3">
           <div className="flex items-center gap-2.5 rounded-xl border border-white/5 bg-white/[0.02] px-3 py-2.5">
             <AccountIcon isAdmin={isAdmin} />
@@ -102,19 +101,17 @@ function Layout() {
             <div className="hidden md:block text-sm text-gray-400 font-display font-semibold tracking-wide">Smart Light Control</div>
             <div className="flex items-center gap-2">
               <StatusBadge />
-              {isAdmin && (
               <NavLink
-                to="/settings"
-                aria-label="Settings"
+                to={isAdmin ? '/settings' : '/connection'}
+                aria-label={isAdmin ? 'Settings' : 'Connection'}
                 className={({ isActive }) =>
                   `md:hidden w-9 h-9 rounded-lg border flex items-center justify-center transition-colors ${
                     isActive ? 'border-amber-400/40 bg-amber-400/10 text-amber-300' : 'border-white/10 bg-white/5 text-gray-300'
                   }`
                 }
               >
-                <Settings className="w-4 h-4" />
+                {isAdmin ? <Settings className="w-4 h-4" /> : <PlugZap className="w-4 h-4" />}
               </NavLink>
-              )}
               <button
                 onClick={logout}
                 aria-label="Log out"
@@ -131,7 +128,8 @@ function Layout() {
             <Route path="/" element={<RoomPage />} />
             <Route path="/room/:roomId" element={<RoomPage />} />
             <Route path="/bedroom" element={<Navigate to="/room/bed" replace />} />
-            <Route path="/settings" element={isAdmin ? <SettingsPage /> : <Navigate to="/" replace />} />
+            <Route path="/settings" element={isAdmin ? <SettingsPage /> : <Navigate to="/connection" replace />} />
+            <Route path="/connection" element={isAdmin ? <Navigate to="/settings" replace /> : <ConnectionPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>

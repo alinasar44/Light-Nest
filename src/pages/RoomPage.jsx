@@ -71,13 +71,18 @@ export default function RoomPage() {
           </Link>
         )}
         {!connected && !isAdmin && (
-          <div className="mb-5 flex items-center gap-3 rounded-2xl border border-rose-400/25 bg-rose-400/[0.07] px-4 py-3.5">
+          <Link
+            to="/connection"
+            className="mb-5 flex items-center gap-3 rounded-2xl border border-rose-400/25 bg-rose-400/[0.07] px-4 py-3.5 hover:bg-rose-400/[0.12] transition-colors"
+          >
             <AlertCircle className="w-5 h-5 text-rose-300 shrink-0" />
             <div className="min-w-0">
-              <div className="text-sm font-semibold text-rose-200">Connecting… switches unlock when connected</div>
-              <div className="text-[11px] text-rose-300/60 mt-0.5">If this takes long, check your internet or ask the admin.</div>
+              <div className="text-sm font-semibold text-rose-200">Not connected — switches unlock when connected</div>
+              <div className="text-[11px] text-rose-300/60 mt-0.5 flex items-center gap-1">
+                Tap to enter the connection details or code <Settings className="w-3 h-3" />
+              </div>
             </div>
-          </div>
+          </Link>
         )}
 
         {!isAdmin && switches.length === 0 && (

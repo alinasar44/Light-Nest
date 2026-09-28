@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
-import { Info, Plus, RefreshCw, Save, Server, ToggleLeft, Trash2, Unplug } from 'lucide-react'
+import { Check, Copy, Home, Info, Plus, RefreshCw, Save, Server, Share2, ToggleLeft, Trash2, Unplug } from 'lucide-react'
 import Field, { inputClass, noAuto } from '../components/Field.jsx'
 import ConfirmButton from '../components/ConfirmButton.jsx'
 import { buildBrokerUrl, mqtt } from '../lib/mqtt.js'
 import { ROOM_ICONS, newId, roomIcon, topicSlug } from '../lib/rooms.js'
 import { useMqttStatus, useSettings } from '../lib/settings.jsx'
+import { makeConnectionCode } from '../lib/connectionCode.js'
 
 export default function SettingsPage() {
   const { settings, loading, save, clientId } = useSettings()
@@ -108,6 +109,12 @@ export default function SettingsPage() {
                 <input className={inputClass} type="password" value={draft.password} onChange={(e) => setField('password', e.target.value)} placeholder="broker password" />
               </Field>
             </div>
+            <Field label="Home ID" hint="Users connect with the same ID to get your rooms and lights. Change it to start a separate home.">
+              <div className="relative">
+                <Home className="w-4 h-4 text-gray-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input className={`${inputClass} pl-10`} value={draft.homeId} onChange={(e) => setField('homeId', e.target.value)} placeholder="af34509527d5f924d9" {...noAuto} />
+              </div>
+            </Field>
             <Field label="Client ID" hint="Unique to this device, so several phones can stay connected at the same time.">
               <input className={`${inputClass} opacity-60`} value={clientId} readOnly />
             </Field>
@@ -117,6 +124,8 @@ export default function SettingsPage() {
             <div className="mt-4 text-[12px] text-rose-300 bg-rose-400/[0.07] border border-rose-400/20 rounded-xl px-3.5 py-2.5">{lastError}</div>
           )}
         </section>
+
+        <ShareSection settings={settings} />
 
         <section className="rounded-3xl border border-white/8 bg-white/[0.03] p-5 md:p-6 mb-5">
           <div className="flex items-center gap-3 mb-5">
@@ -255,5 +264,64 @@ export default function SettingsPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+// Connection code for users, built from the saved settings (not unsaved edits).
+function ShareSection({ settings }) {
+  const [copied, setCopied] = useState('')
+  const code = makeConnectionCode(settings)
+
+  const copy = async (what, text) => {
+    try {
+      await navigator.clipboard.writeText(text)
+    } catch {
+      const el = document.createElement('textarea')
+      el.value = text
+      document.body.appendChild(el)
+      el.select()
+      document.execCommand('copy')
+      el.remove()
+    }
+    setCopied(what)
+    setTimeout(() => setCopied(''), 2000)
+  }
+
+  const CopyButton = ({ what, text, label }) => (
+    <button
+      type="button"
+      onClick={() => copy(what, text)}
+      className="shrink-0 flex items-center justify-center gap-2 min-h-[44px] px-4 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-gray-200 font-semibold text-sm"
+    >
+      {copied === what ? <Check className="w-4 h-4 text-emerald-300" /> : <Copy className="w-4 h-4" />}
+      {copied === what ? 'Copied' : label}
+    </button>
+  )
+
+  return (
+    <section className="rounded-3xl border border-amber-400/20 bg-amber-400/[0.04] p-5 md:p-6 mb-5">
+      <div className="flex items-center gap-3 mb-4">
+        <div className="w-10 h-10 rounded-xl bg-amber-400/10 border border-amber-400/25 flex items-center justify-center">
+          <Share2 className="w-5 h-5 text-amber-300" />
+        </div>
+        <div>
+          <h2 className="font-display font-semibold text-gray-100">Share with users</h2>
+          <p className="text-[11px] text-gray-500">Send this code to a user — they paste it on their Connection page</p>
+        </div>
+      </div>
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className={`${inputClass} flex-1 min-w-0 break-all text-[12px] leading-relaxed select-all`}>{code}</div>
+        <CopyButton what="code" text={code} label="Copy code" />
+      </div>
+      <div className="flex items-center gap-3 mt-3">
+        <div className="text-[11px] text-gray-500 min-w-0 flex-1">
+          Home ID: <span className="font-mono text-gray-300 break-all">{settings.homeId}</span>
+        </div>
+        <CopyButton what="id" text={settings.homeId} label="Copy ID" />
+      </div>
+      {settings.password && (
+        <p className="mt-3 text-[11px] text-amber-200/70">The code includes the broker password — only send it to people you trust.</p>
+      )}
+    </section>
   )
 }

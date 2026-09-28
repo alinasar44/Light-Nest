@@ -1,7 +1,7 @@
 // App-wide constants shared by every device that opens the site.
 
-// Broker every device connects to out of the box. The admin can change it from Settings;
-// the change is synced to the other devices over the current broker.
+// Broker every device connects to out of the box. Each device can change it
+// (the admin from Settings, a user from the Connection page or with a connection code).
 export const DEFAULT_BROKER = {
   host: 'broker.hivemq.com',
   port: '8884',
@@ -10,9 +10,13 @@ export const DEFAULT_BROKER = {
   password: '',
 }
 
-// Retained topic that carries the rooms / devices / broker config from the admin to every device.
-// The random part keeps other people on the public broker from stumbling onto it.
-export const CONFIG_TOPIC = import.meta.env.VITE_CONFIG_TOPIC || 'lightnest/af34509527d5f924d9/config'
+// The "home" whose rooms / devices this device follows. The admin publishes them retained on
+// lightnest/<homeId>/config; the random default keeps others on the public broker from stumbling onto it.
+export const DEFAULT_HOME_ID = import.meta.env.VITE_HOME_ID || 'af34509527d5f924d9'
+
+export function configTopic(homeId) {
+  return `lightnest/${(homeId || DEFAULT_HOME_ID).trim()}/config`
+}
 
 // Accounts. Passwords are stored as sha256('lightnest:' + password), never in plain text.
 export const ACCOUNTS = [

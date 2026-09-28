@@ -1,12 +1,14 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
-import { CONFIG_TOPIC, DEFAULT_BROKER } from '../config.js'
+import { DEFAULT_BROKER, DEFAULT_HOME_ID, configTopic } from '../config.js'
 import { useAuth } from './auth.jsx'
 import { buildBrokerUrl, mqtt } from './mqtt.js'
 import { newId } from './rooms.js'
 
 const STORAGE_KEY = 'lightnest.broker'
 const CLIENT_ID_KEY = 'lightnest.clientId'
-const BROKER_FIELDS = ['host', 'port', 'path', 'username', 'password']
+// Connection fields are per device: set by the admin in Settings, by a user on the Connection page.
+export const CONNECTION_FIELDS = ['host', 'port', 'path', 'username', 'password', 'homeId']
+const isRealVersion = (v) => v > 1e12 // a Date.now() timestamp, not a placeholder
 
 export const DEFAULT_ROOMS = [
   { id: 'living', name: 'Living Room', icon: 'sofa' },
@@ -15,13 +17,15 @@ export const DEFAULT_ROOMS = [
 
 export const DEFAULT_SETTINGS = {
   ...DEFAULT_BROKER,
+  homeId: DEFAULT_HOME_ID,
   rooms: DEFAULT_ROOMS,
   switches: [
     { id: 'lr1', room: 'living', name: 'Living Light', topic: 'home/livingroom/light1', on: 'ON', off: 'OFF' },
     { id: 'br1', room: 'bed', name: 'Bed Light 1', topic: 'home/bedroom/light1', on: 'ON', off: 'OFF' },
     { id: 'br2', room: 'bed', name: 'Bed Light 2', topic: 'home/bedroom/light2', on: 'ON', off: 'OFF' },
   ],
-  // When the admin last changed rooms / devices / broker. The newest version wins on every device.
+  // When the admin last changed rooms / devices. The newest version wins on every device.
+  // 0 = nothing yet (built-in defaults), 1 = real local setup saved before syncing existed.
   configUpdatedAt: 0,
 }
 
@@ -64,6 +68,8 @@ function normalize(stored) {
     switches: Array.isArray(stored.switches) && (hasRooms || stored.switches.length) ? stored.switches : DEFAULT_SETTINGS.switches,
   }
   if (!(merged.host || '').trim()) Object.assign(merged, DEFAULT_BROKER)
+  if (!(merged.homeId || '').trim()) merged.homeId = DEFAULT_HOME_ID
+  if (stored.configUpdatedAt === undefined) merged.configUpdatedAt = 1
   delete merged.clientId
   return merged
 }
@@ -88,9 +94,20 @@ function connectTo(s, clientId) {
   else mqtt.disconnect()
 }
 
+// Only rooms and devices are shared. Broker login details never go out over the broker.
 function configMessage(s) {
-  const broker = Object.fromEntries(BROKER_FIELDS.map((k) => [k, s[k] || '']))
-  return JSON.stringify({ v: 1, updatedAt: s.configUpdatedAt, rooms: s.rooms, switches: s.switches, broker })
+  return JSON.stringify({ v: 1, updatedAt: s.configUpdatedAt, rooms: s.rooms, switches: s.switches })
+}
+
+function cleanConnection(c) {
+  return {
+    host: (c.host || '').trim(),
+    port: (c.port || '').trim(),
+    path: (c.path || '').trim(),
+    username: (c.username || '').trim(),
+    password: c.password || '',
+    homeId: (c.homeId || '').trim() || DEFAULT_HOME_ID,
+  }
 }
 
 const SettingsContext = createContext(null)
@@ -106,8 +123,15 @@ export function SettingsProvider({ children }) {
   adminRef.current = isAdmin
 
   const publishConfig = useCallback(() => {
-    const s = current.current
-    if (mqtt.publish(CONFIG_TOPIC, configMessage(s), { retain: true })) {
+    let s = current.current
+    // A setup from before syncing has no real version yet; stamp it so other devices accept it.
+    if (!isRealVersion(s.configUpdatedAt)) {
+      s = { ...s, configUpdatedAt: Date.now() }
+      current.current = s
+      setSettings(s)
+      store(s)
+    }
+    if (mqtt.publish(configTopic(s.homeId), configMessage(s), { retain: true })) {
       remoteUpdatedAt.current = Math.max(remoteUpdatedAt.current, s.configUpdatedAt)
     }
   }, [])
@@ -132,8 +156,30 @@ export function SettingsProvider({ children }) {
     setSettings(initial)
     setLoading(false)
 
-    // Config coming from the admin (retained on the broker, so it also arrives right after connecting).
-    const offConfig = mqtt.onMessage(CONFIG_TOPIC, (_topic, message) => {
+    // After (re)connecting, the admin pushes anything changed while offline once the retained copy had time to arrive.
+    let pushTimer = null
+    const offStatus = mqtt.onStatusChange(() => {
+      clearTimeout(pushTimer)
+      if (mqtt.status !== 'connected') return
+      pushTimer = setTimeout(() => {
+        if (adminRef.current && current.current.configUpdatedAt > remoteUpdatedAt.current) publishConfig()
+      }, 4000)
+    })
+
+    connectTo(initial, clientId)
+    return () => {
+      offStatus()
+      clearTimeout(pushTimer)
+      mqtt.disconnect() // logged out
+    }
+  }, [clientId, commit, publishConfig])
+
+  // Config coming from the admin, retained on lightnest/<homeId>/config so it also arrives right after connecting.
+  const homeId = settings.homeId
+  useEffect(() => {
+    if (loading) return
+    remoteUpdatedAt.current = 0
+    return mqtt.onMessage(configTopic(homeId), (_topic, message) => {
       let data
       try {
         data = JSON.parse(message)
@@ -145,50 +191,45 @@ export function SettingsProvider({ children }) {
       remoteUpdatedAt.current = Math.max(remoteUpdatedAt.current, version)
       const local = current.current
       if (version <= local.configUpdatedAt) return
-
-      const broker = Object.fromEntries(BROKER_FIELDS.map((k) => [k, String(data.broker?.[k] ?? local[k] ?? '')]))
-      const next = { ...local, ...broker, rooms: data.rooms, switches: data.switches.map(cleanSwitch), configUpdatedAt: version }
-      const moved = brokerUrl(next) !== brokerUrl(local) || next.username !== local.username || next.password !== local.password
-      commit(next, { share: false })
-      if (moved) connectTo(next, clientId)
+      commit({ ...local, rooms: data.rooms, switches: data.switches.map(cleanSwitch), configUpdatedAt: version }, { share: false })
     })
+  }, [homeId, loading, commit])
 
-    // After (re)connecting, the admin pushes anything changed while offline once the retained copy had time to arrive.
-    let pushTimer = null
-    const offStatus = mqtt.onStatusChange(() => {
-      clearTimeout(pushTimer)
-      if (mqtt.status !== 'connected') return
-      pushTimer = setTimeout(() => {
-        if (adminRef.current && current.current.configUpdatedAt > remoteUpdatedAt.current) publishConfig()
-      }, 2500)
-    })
-
-    connectTo(initial, clientId)
-    return () => {
-      offConfig()
-      offStatus()
-      clearTimeout(pushTimer)
-      mqtt.disconnect() // logged out
-    }
-  }, [clientId, commit, publishConfig])
-
-  // Full save from the Settings page: stores everything, shares it, then (re)connects to the broker.
+  // Full save from the Settings page (admin): stores everything, reconnects, shares rooms / devices.
   const save = useCallback(
     async (draft) => {
       const prev = current.current
+      const conn = cleanConnection(draft)
+      const moved = CONNECTION_FIELDS.some((k) => conn[k] !== prev[k])
       const next = {
         ...prev,
-        host: (draft.host || '').trim(),
-        port: (draft.port || '').trim(),
-        path: (draft.path || '').trim(),
-        username: (draft.username || '').trim(),
-        password: draft.password || '',
+        ...conn,
         rooms: draft.rooms.map((r) => ({ ...r, name: (r.name || '').trim() || 'Room' })),
         switches: draft.switches.map(cleanSwitch),
       }
-      // Published on the current broker first, so devices still on it learn about a broker change.
-      commit(next)
+      commit(next, { share: !moved })
+      // On a new broker / home the push after connecting publishes it there.
+      if (moved) {
+        current.current = { ...current.current, configUpdatedAt: Date.now() }
+        store(current.current)
+        remoteUpdatedAt.current = 0
+      }
       connectTo(current.current, clientId)
+    },
+    [commit, clientId],
+  )
+
+  // Connection only (any account): broker + home. Rooms / devices then come from the admin.
+  const saveConnection = useCallback(
+    (fields) => {
+      const prev = current.current
+      const conn = cleanConnection({ ...prev, ...fields })
+      const newHome = conn.homeId !== prev.homeId
+      // A user joining another home takes that home's rooms, whatever their version.
+      const next = { ...prev, ...conn, configUpdatedAt: newHome && !adminRef.current ? 0 : prev.configUpdatedAt }
+      commit(next, { share: false })
+      remoteUpdatedAt.current = 0
+      connectTo(next, clientId)
     },
     [commit, clientId],
   )
@@ -220,7 +261,9 @@ export function SettingsProvider({ children }) {
   const reconnect = useCallback(() => connectTo(current.current, clientId), [clientId])
 
   return (
-    <SettingsContext.Provider value={{ settings, loading, clientId, reconnect, ...guarded }}>{children}</SettingsContext.Provider>
+    <SettingsContext.Provider value={{ settings, loading, clientId, reconnect, saveConnection, ...guarded }}>
+      {children}
+    </SettingsContext.Provider>
   )
 }
 
