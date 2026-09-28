@@ -55,9 +55,9 @@ function subscribePacket(id, topic) {
   return packet(130, [(id >> 8) & 255, id & 255, ...encodeString(topic), 0])
 }
 
-function publishPacket(topic, message) {
+function publishPacket(topic, message, retain = false) {
   const bytes = Array.from(new TextEncoder().encode(String(message)))
-  return packet(48, [...encodeString(topic), ...bytes])
+  return packet(retain ? 49 : 48, [...encodeString(topic), ...bytes])
 }
 
 function pubackPacket(id) {
@@ -169,10 +169,10 @@ class MqttClient {
     this._setStatus('offline')
   }
 
-  publish(topic, message) {
+  publish(topic, message, { retain = false } = {}) {
     if (!this._isOpen() || this.status !== 'connected') return false
     try {
-      this.ws.send(publishPacket(topic, message))
+      this.ws.send(publishPacket(topic, message, retain))
       this._deliver(topic, String(message))
       return true
     } catch {
@@ -372,7 +372,8 @@ class MqttClient {
 
   _deliver(topic, message) {
     this.lastPayload.set(topic, message)
-    saveStates(this.lastPayload)
+    // Light states are cached for the next visit; the app's own config topic is not.
+    if (!topic.startsWith('lightnest/')) saveStates(this.lastPayload)
     for (const [filter, set] of this.subs) {
       if (!topicMatches(filter, topic)) continue
       set.forEach((fn) => {

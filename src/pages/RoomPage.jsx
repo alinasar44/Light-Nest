@@ -7,12 +7,14 @@ import DeviceDialog from '../components/DeviceDialog.jsx'
 import RoomDialog from '../components/RoomDialog.jsx'
 import { isOn, lightCountLabel, roomIcon } from '../lib/rooms.js'
 import { useMqttStatus, useSettings, useTopicPayloads } from '../lib/settings.jsx'
+import { useAuth } from '../lib/auth.jsx'
 
 export default function RoomPage() {
   const { roomId } = useParams()
   const navigate = useNavigate()
   const { settings, loading, addSwitch, updateSwitch, deleteSwitch, updateRoom, deleteRoom } = useSettings()
   const { status } = useMqttStatus()
+  const { isAdmin } = useAuth()
   const [deviceDialog, setDeviceDialog] = useState(null) // { device } | null
   const [editRoom, setEditRoom] = useState(false)
 
@@ -41,6 +43,7 @@ export default function RoomPage() {
             <h1 className="font-display font-bold text-2xl md:text-3xl text-gray-50 truncate">{room.name}</h1>
             <p className="text-xs md:text-sm text-gray-500 mt-0.5">{lightCountLabel(switches.length)} · MQTT controlled</p>
           </div>
+          {isAdmin && (
           <button
             onClick={() => setEditRoom(true)}
             aria-label="Edit room"
@@ -48,11 +51,12 @@ export default function RoomPage() {
           >
             <Pencil className="w-4 h-4" />
           </button>
+          )}
         </div>
 
         <RoomControls switches={switches} onCount={onCount} connected={connected} />
 
-        {!connected && (
+        {!connected && isAdmin && (
           <Link
             to="/settings"
             className="mb-5 flex items-center gap-3 rounded-2xl border border-rose-400/25 bg-rose-400/[0.07] px-4 py-3.5 hover:bg-rose-400/[0.12] transition-colors"
@@ -66,7 +70,19 @@ export default function RoomPage() {
             </div>
           </Link>
         )}
+        {!connected && !isAdmin && (
+          <div className="mb-5 flex items-center gap-3 rounded-2xl border border-rose-400/25 bg-rose-400/[0.07] px-4 py-3.5">
+            <AlertCircle className="w-5 h-5 text-rose-300 shrink-0" />
+            <div className="min-w-0">
+              <div className="text-sm font-semibold text-rose-200">Connecting… switches unlock when connected</div>
+              <div className="text-[11px] text-rose-300/60 mt-0.5">If this takes long, check your internet or ask the admin.</div>
+            </div>
+          </div>
+        )}
 
+        {!isAdmin && switches.length === 0 && (
+          <div className="rounded-3xl border border-dashed border-white/10 p-8 text-center text-sm text-gray-500">No lights in this room yet.</div>
+        )}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-5">
           {switches.map((sw) => (
             <LightSwitch
@@ -74,9 +90,10 @@ export default function RoomPage() {
               sw={sw}
               payload={payloads[sw.topic]}
               connected={connected}
-              onEdit={() => setDeviceDialog({ device: sw })}
+              onEdit={isAdmin ? () => setDeviceDialog({ device: sw }) : undefined}
             />
           ))}
+          {isAdmin && (
           <button
             onClick={() => setDeviceDialog({ device: null })}
             className="min-h-[150px] rounded-3xl border-2 border-dashed border-white/10 hover:border-amber-400/40 hover:bg-amber-400/[0.04] text-gray-500 hover:text-amber-300 transition-colors flex flex-col items-center justify-center gap-2"
@@ -86,6 +103,7 @@ export default function RoomPage() {
             </span>
             <span className="text-sm font-semibold">Add device</span>
           </button>
+          )}
         </div>
 
         <p className="mt-8 text-[11px] text-gray-600 leading-relaxed">
@@ -95,7 +113,7 @@ export default function RoomPage() {
       </div>
 
       <DeviceDialog
-        open={!!deviceDialog}
+        open={isAdmin && !!deviceDialog}
         room={room}
         device={deviceDialog?.device}
         existingCount={switches.length}
@@ -104,7 +122,7 @@ export default function RoomPage() {
         onDelete={() => deviceDialog?.device && deleteSwitch(deviceDialog.device.id)}
       />
       <RoomDialog
-        open={editRoom}
+        open={isAdmin && editRoom}
         room={room}
         deviceCount={switches.length}
         onClose={() => setEditRoom(false)}
@@ -133,6 +151,7 @@ function Skeleton() {
 
 function NoRooms() {
   const { addRoom } = useSettings()
+  const { isAdmin } = useAuth()
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   return (
@@ -142,7 +161,10 @@ function NoRooms() {
           <Plus className="w-7 h-7 text-sky-300" />
         </div>
         <h1 className="font-display font-bold text-xl text-gray-50">No rooms yet</h1>
-        <p className="text-sm text-gray-500 mt-1 mb-5">Add your first room, then add its lights.</p>
+        <p className="text-sm text-gray-500 mt-1 mb-5">
+          {isAdmin ? 'Add your first room, then add its lights.' : 'The admin has not added any rooms yet.'}
+        </p>
+        {isAdmin && (
         <button
           onClick={() => setOpen(true)}
           className="inline-flex items-center justify-center gap-2 min-h-[44px] px-5 rounded-xl bg-amber-400 hover:bg-amber-300 text-black font-bold text-sm"
@@ -150,6 +172,7 @@ function NoRooms() {
           <Plus className="w-4 h-4" />
           Add room
         </button>
+        )}
       </div>
       <RoomDialog open={open} onClose={() => setOpen(false)} onSave={(r) => navigate(`/room/${addRoom(r)}`)} />
     </div>

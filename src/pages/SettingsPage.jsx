@@ -7,7 +7,7 @@ import { ROOM_ICONS, newId, roomIcon, topicSlug } from '../lib/rooms.js'
 import { useMqttStatus, useSettings } from '../lib/settings.jsx'
 
 export default function SettingsPage() {
-  const { settings, loading, save } = useSettings()
+  const { settings, loading, save, clientId } = useSettings()
   const { status, lastError } = useMqttStatus()
   const [draft, setDraft] = useState(null)
   const [saved, setSaved] = useState(false)
@@ -64,7 +64,7 @@ export default function SettingsPage() {
     <div className="h-full overflow-y-auto">
       <div className="max-w-2xl mx-auto w-full px-4 md:px-8 py-6 md:py-10 pb-28 md:pb-10">
         <h1 className="font-display font-bold text-2xl md:text-3xl text-gray-50 mb-1">Settings</h1>
-        <p className="text-xs md:text-sm text-gray-500 mb-6 md:mb-8">Broker connection &amp; switch topics</p>
+        <p className="text-xs md:text-sm text-gray-500 mb-6 md:mb-8">Broker connection &amp; switch topics · saved changes sync to every device</p>
 
         <section className="rounded-3xl border border-white/8 bg-white/[0.03] p-5 md:p-6 mb-5">
           <div className="flex items-center gap-3 mb-5">
@@ -108,8 +108,8 @@ export default function SettingsPage() {
                 <input className={inputClass} type="password" value={draft.password} onChange={(e) => setField('password', e.target.value)} placeholder="broker password" />
               </Field>
             </div>
-            <Field label="Client ID">
-              <input className={inputClass} value={draft.clientId} onChange={(e) => setField('clientId', e.target.value)} placeholder="lightnest-01" {...noAuto} />
+            <Field label="Client ID" hint="Unique to this device, so several phones can stay connected at the same time.">
+              <input className={`${inputClass} opacity-60`} value={clientId} readOnly />
             </Field>
           </div>
 
@@ -244,7 +244,7 @@ export default function SettingsPage() {
             </button>
           ) : (
             <button
-              onClick={() => hasHost && mqtt.connect({ ...draft, url: buildBrokerUrl(draft.host, draft.port, draft.path) })}
+              onClick={() => hasHost && mqtt.connect({ ...draft, clientId, url: buildBrokerUrl(draft.host, draft.port, draft.path) })}
               disabled={!hasHost}
               className="flex items-center justify-center gap-2 min-h-[50px] px-6 rounded-2xl border border-sky-400/30 bg-sky-400/10 hover:bg-sky-400/15 active:scale-[0.98] transition-all text-sky-200 font-semibold text-sm disabled:opacity-40 disabled:cursor-not-allowed"
             >
