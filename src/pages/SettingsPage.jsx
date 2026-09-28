@@ -1,24 +1,10 @@
 import { useEffect, useState } from 'react'
-import { Info, RefreshCw, Save, Server, ToggleLeft, Unplug } from 'lucide-react'
+import { Info, Plus, RefreshCw, Save, Server, ToggleLeft, Trash2, Unplug } from 'lucide-react'
+import Field, { inputClass, noAuto } from '../components/Field.jsx'
+import ConfirmButton from '../components/ConfirmButton.jsx'
 import { buildBrokerUrl, mqtt } from '../lib/mqtt.js'
+import { ROOM_ICONS, newId, roomIcon, topicSlug } from '../lib/rooms.js'
 import { useMqttStatus, useSettings } from '../lib/settings.jsx'
-
-const ROOM_NAMES = { living: 'Living Room', bed: 'Bed Room' }
-
-const inputClass =
-  'w-full bg-white/[0.04] border border-white/10 rounded-xl px-3.5 py-3 text-sm text-gray-100 placeholder-gray-600 outline-none focus:border-sky-400/60 focus:bg-white/[0.06] transition-colors font-mono'
-
-function Field({ label, hint, children }) {
-  return (
-    <label className="block">
-      <div className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-1.5">{label}</div>
-      {children}
-      {hint && <div className="text-[11px] text-gray-600 mt-1">{hint}</div>}
-    </label>
-  )
-}
-
-const noAuto = { autoCapitalize: 'off', autoCorrect: 'off', spellCheck: false }
 
 export default function SettingsPage() {
   const { settings, loading, save } = useSettings()
@@ -45,10 +31,25 @@ export default function SettingsPage() {
     setSaved(false)
   }
 
-  const setSwitchField = (index, key, value) => {
-    setDraft((d) => ({ ...d, switches: d.switches.map((s, i) => (i === index ? { ...s, [key]: value } : s)) }))
+  const change = (fn) => {
+    setDraft(fn)
     setSaved(false)
   }
+  const setSwitchField = (id, key, value) =>
+    change((d) => ({ ...d, switches: d.switches.map((s) => (s.id === id ? { ...s, [key]: value } : s)) }))
+  const setRoomField = (id, key, value) =>
+    change((d) => ({ ...d, rooms: d.rooms.map((r) => (r.id === id ? { ...r, [key]: value } : r)) }))
+  const addDevice = (room) =>
+    change((d) => {
+      const n = d.switches.filter((s) => s.room === room.id).length + 1
+      const sw = { id: newId('sw'), room: room.id, name: `Light ${n}`, topic: `home/${topicSlug(room.name)}/light${n}`, on: 'ON', off: 'OFF' }
+      return { ...d, switches: [...d.switches, sw] }
+    })
+  const removeDevice = (id) => change((d) => ({ ...d, switches: d.switches.filter((s) => s.id !== id) }))
+  const addRoomDraft = () =>
+    change((d) => ({ ...d, rooms: [...d.rooms, { id: newId('room'), name: `Room ${d.rooms.length + 1}`, icon: 'house' }] }))
+  const removeRoom = (id) =>
+    change((d) => ({ ...d, rooms: d.rooms.filter((r) => r.id !== id), switches: d.switches.filter((s) => s.room !== id) }))
 
   const onSave = async () => {
     await save(draft)
@@ -123,35 +124,105 @@ export default function SettingsPage() {
               <ToggleLeft className="w-5 h-5 text-amber-300" />
             </div>
             <div>
-              <h2 className="font-display font-semibold text-gray-100">Switch Topics</h2>
-              <p className="text-[11px] text-gray-500">Topic and payloads for each light</p>
+              <h2 className="font-display font-semibold text-gray-100">Rooms &amp; Devices</h2>
+              <p className="text-[11px] text-gray-500">Rooms, lights, topics and payloads</p>
             </div>
           </div>
 
           <div className="space-y-5">
-            {draft.switches.map((sw, i) => (
-              <div key={sw.id || i} className="rounded-2xl border border-white/8 bg-black/20 p-4">
-                <div className="text-[10px] font-bold uppercase tracking-[0.15em] text-sky-400/80 mb-3">
-                  {ROOM_NAMES[sw.room] || sw.room} · Switch {draft.switches.slice(0, i + 1).filter((s) => s.room === sw.room).length}
-                </div>
-                <div className="space-y-3">
-                  <Field label="Name">
-                    <input className={`${inputClass} font-sans`} value={sw.name} onChange={(e) => setSwitchField(i, 'name', e.target.value)} placeholder="Light name" />
-                  </Field>
-                  <Field label="Topic">
-                    <input className={inputClass} value={sw.topic} onChange={(e) => setSwitchField(i, 'topic', e.target.value)} placeholder="home/livingroom/light1" {...noAuto} />
-                  </Field>
-                  <div className="grid grid-cols-2 gap-3">
-                    <Field label="ON payload">
-                      <input className={inputClass} value={sw.on} onChange={(e) => setSwitchField(i, 'on', e.target.value)} placeholder="ON" autoCapitalize="off" spellCheck={false} />
-                    </Field>
-                    <Field label="OFF payload">
-                      <input className={inputClass} value={sw.off} onChange={(e) => setSwitchField(i, 'off', e.target.value)} placeholder="OFF" autoCapitalize="off" spellCheck={false} />
-                    </Field>
+            {draft.rooms.map((room) => {
+              const RoomIcon = roomIcon(room.icon)
+              const devices = draft.switches.filter((sw) => sw.room === room.id)
+              return (
+                <div key={room.id} className="rounded-2xl border border-white/8 bg-black/20 p-3 sm:p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-10 h-10 shrink-0 rounded-xl bg-sky-400/10 border border-sky-400/25 flex items-center justify-center">
+                      <RoomIcon className="w-5 h-5 text-sky-300" />
+                    </div>
+                    <input
+                      className={`${inputClass} font-sans font-semibold py-2.5 min-w-0`}
+                      value={room.name}
+                      onChange={(e) => setRoomField(room.id, 'name', e.target.value)}
+                      placeholder="Room name"
+                      aria-label="Room name"
+                    />
+                    <select
+                      className={`${inputClass} font-sans !w-auto shrink-0 py-2.5 px-2`}
+                      value={room.icon}
+                      onChange={(e) => setRoomField(room.id, 'icon', e.target.value)}
+                      aria-label="Room icon"
+                    >
+                      {Object.keys(ROOM_ICONS).map((k) => (
+                        <option key={k} value={k} className="bg-[#0c1120]">
+                          {k}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-3">
+                    {devices.map((sw, i) => (
+                      <div key={sw.id} className="rounded-xl border border-white/5 bg-white/[0.02] p-3 sm:p-4">
+                        <div className="flex items-center justify-between gap-2 mb-3">
+                          <div className="text-[10px] font-bold uppercase tracking-[0.15em] text-sky-400/80">Switch {i + 1}</div>
+                          <button
+                            type="button"
+                            onClick={() => removeDevice(sw.id)}
+                            aria-label={`Remove ${sw.name}`}
+                            className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 hover:text-rose-300 hover:bg-rose-400/10 transition-colors"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                        <div className="space-y-3">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <Field label="Name">
+                              <input className={`${inputClass} font-sans`} value={sw.name} onChange={(e) => setSwitchField(sw.id, 'name', e.target.value)} placeholder="Light name" />
+                            </Field>
+                            <Field label="Topic">
+                              <input className={inputClass} value={sw.topic} onChange={(e) => setSwitchField(sw.id, 'topic', e.target.value)} placeholder="home/livingroom/light1" {...noAuto} />
+                            </Field>
+                          </div>
+                          <div className="grid grid-cols-2 gap-3">
+                            <Field label="ON payload">
+                              <input className={inputClass} value={sw.on} onChange={(e) => setSwitchField(sw.id, 'on', e.target.value)} placeholder="ON" {...noAuto} />
+                            </Field>
+                            <Field label="OFF payload">
+                              <input className={inputClass} value={sw.off} onChange={(e) => setSwitchField(sw.id, 'off', e.target.value)} placeholder="OFF" {...noAuto} />
+                            </Field>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row gap-2 mt-3">
+                    <button
+                      type="button"
+                      onClick={() => addDevice(room)}
+                      className="flex-1 flex items-center justify-center gap-2 min-h-[44px] rounded-xl border border-dashed border-white/15 text-gray-400 hover:text-amber-300 hover:border-amber-400/40 text-sm font-semibold transition-colors"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Add device
+                    </button>
+                    <ConfirmButton
+                      label="Delete room"
+                      confirmLabel={devices.length ? `Delete room + ${devices.length} device${devices.length > 1 ? 's' : ''}?` : 'Tap again to delete'}
+                      onConfirm={() => removeRoom(room.id)}
+                    />
                   </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
+
+            <button
+              type="button"
+              onClick={addRoomDraft}
+              className="w-full flex items-center justify-center gap-2 min-h-[50px] rounded-2xl border border-dashed border-sky-400/25 bg-sky-400/[0.04] text-sky-200 hover:bg-sky-400/[0.08] text-sm font-semibold transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              Add room
+            </button>
           </div>
         </section>
 
