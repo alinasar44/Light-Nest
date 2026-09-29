@@ -13,10 +13,11 @@ export default function DeviceDialog({ open, room, device, existingCount, onClos
     if (!open) return
     setForm(
       device
-        ? { name: device.name, topic: device.topic, on: device.on, off: device.off }
+        ? { name: device.name, topic: device.topic, stateTopic: device.stateTopic || '', on: device.on, off: device.off }
         : {
             name: '',
             topic: `home/${topicSlug(room?.name)}/light${existingCount + 1}`,
+            stateTopic: '',
             on: 'ON',
             off: 'OFF',
           },
@@ -66,8 +67,11 @@ export default function DeviceDialog({ open, room, device, existingCount, onClos
         <Field label="Name">
           <input className={`${inputClass} font-sans`} value={form.name} onChange={set('name')} placeholder="Ceiling light" autoFocus />
         </Field>
-        <Field label="Topic" hint="The device must publish its state on this topic too, so the indicator stays correct.">
+        <Field label="Command topic" hint="ON/OFF commands are published here (retained).">
           <input className={inputClass} value={form.topic} onChange={set('topic')} placeholder="home/livingroom/light1" {...noAuto} />
+        </Field>
+        <Field label="State topic (optional)" hint="Where the device reports its real state. Leave empty if it only listens on the command topic.">
+          <input className={inputClass} value={form.stateTopic} onChange={set('stateTopic')} placeholder="home/livingroom/light1/status" {...noAuto} />
         </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="ON payload">

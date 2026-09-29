@@ -5,7 +5,7 @@ import LightSwitch from '../components/LightSwitch.jsx'
 import RoomControls from '../components/RoomControls.jsx'
 import DeviceDialog from '../components/DeviceDialog.jsx'
 import RoomDialog from '../components/RoomDialog.jsx'
-import { isOn, lightCountLabel, roomIcon } from '../lib/rooms.js'
+import { isOn, lightCountLabel, roomIcon, switchPayload, switchTopics } from '../lib/rooms.js'
 import { useMqttStatus, useSettings, useTopicPayloads } from '../lib/settings.jsx'
 import { useAuth } from '../lib/auth.jsx'
 
@@ -21,14 +21,14 @@ export default function RoomPage() {
   const rooms = settings.rooms || []
   const room = roomId ? rooms.find((r) => r.id === roomId) : rooms[0]
   const switches = (settings.switches || []).filter((s) => room && s.room === room.id)
-  const payloads = useTopicPayloads(switches.map((s) => s.topic))
+  const payloads = useTopicPayloads(switches.flatMap(switchTopics))
 
   if (loading) return <Skeleton />
   if (!room) return rooms.length ? <Navigate to={`/room/${rooms[0].id}`} replace /> : <NoRooms />
   if (!roomId) return <Navigate to={`/room/${room.id}`} replace />
 
   const connected = status === 'connected'
-  const onCount = switches.filter((s) => isOn(payloads[s.topic], s)).length
+  const onCount = switches.filter((s) => isOn(switchPayload(payloads, s), s)).length
   const Icon = roomIcon(room.icon)
   const message = settings.host ? 'Connecting to broker… switches unlock when connected' : 'Broker not configured — open Settings'
 
@@ -93,7 +93,7 @@ export default function RoomPage() {
             <LightSwitch
               key={sw.id}
               sw={sw}
-              payload={payloads[sw.topic]}
+              payload={switchPayload(payloads, sw)}
               connected={connected}
               onEdit={isAdmin ? () => setDeviceDialog({ device: sw }) : undefined}
             />
@@ -112,8 +112,8 @@ export default function RoomPage() {
         </div>
 
         <p className="mt-8 text-[11px] text-gray-600 leading-relaxed">
-          Tapping a switch publishes the configured ON/OFF payload to its MQTT topic. Incoming messages on the same topic
-          update the switch state live.
+          Tapping a switch publishes the configured ON/OFF payload (retained) to its command topic. The state shown comes
+          from the device's state topic when one is set, otherwise from the last command.
         </p>
       </div>
 

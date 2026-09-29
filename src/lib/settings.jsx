@@ -79,6 +79,7 @@ function cleanSwitch(s) {
     ...s,
     name: (s.name || '').trim(),
     topic: (s.topic || '').trim(),
+    stateTopic: (s.stateTopic || '').trim(),
     on: (s.on || 'ON').trim(),
     off: (s.off || 'OFF').trim(),
   }

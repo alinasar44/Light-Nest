@@ -7,7 +7,7 @@ export default function RoomControls({ switches, onCount, connected }) {
   const disabled = !connected || total === 0
   const setAll = (value) => {
     if (disabled) return
-    switches.forEach((sw) => sw.topic && mqtt.publish(sw.topic, value ? sw.on : sw.off))
+    switches.forEach((sw) => sw.topic && mqtt.publish(sw.topic, value ? sw.on : sw.off, { retain: true }))
   }
 
   return (

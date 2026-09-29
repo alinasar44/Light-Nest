@@ -59,6 +59,17 @@ export function isOn(payload, sw) {
   return ['1', 'on', 'true'].includes(value) && !OFF_WORDS.includes(onValue)
 }
 
+// Topics a switch listens on: its state topic (what the device reports) and its command topic.
+export function switchTopics(sw) {
+  return [sw.stateTopic, sw.topic].filter(Boolean)
+}
+
+// Current payload for a switch: the device's reported state wins, the last (retained) command is the fallback.
+export function switchPayload(payloads, sw) {
+  const state = sw.stateTopic ? payloads[sw.stateTopic] : null
+  return state ?? payloads[sw.topic] ?? null
+}
+
 export function lightCountLabel(n) {
   const words = ['No lights', 'One light', 'Two lights', 'Three lights', 'Four lights', 'Five lights']
   return words[n] || `${n} lights`

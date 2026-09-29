@@ -188,10 +188,13 @@ export default function SettingsPage() {
                             <Field label="Name">
                               <input className={`${inputClass} font-sans`} value={sw.name} onChange={(e) => setSwitchField(sw.id, 'name', e.target.value)} placeholder="Light name" />
                             </Field>
-                            <Field label="Topic">
+                            <Field label="Command topic">
                               <input className={inputClass} value={sw.topic} onChange={(e) => setSwitchField(sw.id, 'topic', e.target.value)} placeholder="home/livingroom/light1" {...noAuto} />
                             </Field>
                           </div>
+                          <Field label="State topic (optional)">
+                            <input className={inputClass} value={sw.stateTopic || ''} onChange={(e) => setSwitchField(sw.id, 'stateTopic', e.target.value)} placeholder="home/livingroom/light1/status" {...noAuto} />
+                          </Field>
                           <div className="grid grid-cols-2 gap-3">
                             <Field label="ON payload">
                               <input className={inputClass} value={sw.on} onChange={(e) => setSwitchField(sw.id, 'on', e.target.value)} placeholder="ON" {...noAuto} />
