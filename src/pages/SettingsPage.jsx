@@ -3,7 +3,7 @@ import { Check, Copy, Home, Info, Plus, RefreshCw, Save, Server, Share2, ToggleL
 import Field, { inputClass, noAuto } from '../components/Field.jsx'
 import ConfirmButton from '../components/ConfirmButton.jsx'
 import { buildBrokerUrl, mqtt } from '../lib/mqtt.js'
-import { ROOM_ICONS, newId, roomIcon, topicSlug } from '../lib/rooms.js'
+import { ROOM_ICONS, deriveStateTopic, newId, roomIcon, topicSlug } from '../lib/rooms.js'
 import { useMqttStatus, useSettings } from '../lib/settings.jsx'
 import { makeConnectionCode } from '../lib/connectionCode.js'
 
@@ -193,7 +193,7 @@ export default function SettingsPage() {
                             </Field>
                           </div>
                           <Field label="State topic (optional)">
-                            <input className={inputClass} value={sw.stateTopic || ''} onChange={(e) => setSwitchField(sw.id, 'stateTopic', e.target.value)} placeholder="home/livingroom/light1/status" {...noAuto} />
+                            <input className={inputClass} value={sw.stateTopic || ''} onChange={(e) => setSwitchField(sw.id, 'stateTopic', e.target.value)} placeholder={deriveStateTopic(sw.topic) || 'home/livingroom/light1/status'} {...noAuto} />
                           </Field>
                           <div className="grid grid-cols-2 gap-3">
                             <Field label="ON payload">

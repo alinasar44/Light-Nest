@@ -59,14 +59,26 @@ export function isOn(payload, sw) {
   return ['1', 'on', 'true'].includes(value) && !OFF_WORDS.includes(onValue)
 }
 
+// Devices answer on the matching status topic: prefix/control/relay1 -> prefix/status/relay1.
+export function deriveStateTopic(topic) {
+  const t = (topic || '').trim()
+  return t.includes('/control/') ? t.replace('/control/', '/status/') : ''
+}
+
+// State topic of a switch: the one set by hand, otherwise the one derived from its command topic.
+export function stateTopicOf(sw) {
+  return (sw.stateTopic || '').trim() || deriveStateTopic(sw.topic)
+}
+
 // Topics a switch listens on: its state topic (what the device reports) and its command topic.
 export function switchTopics(sw) {
-  return [sw.stateTopic, sw.topic].filter(Boolean)
+  return [stateTopicOf(sw), sw.topic].filter(Boolean)
 }
 
 // Current payload for a switch: the device's reported state wins, the last (retained) command is the fallback.
 export function switchPayload(payloads, sw) {
-  const state = sw.stateTopic ? payloads[sw.stateTopic] : null
+  const stateTopic = stateTopicOf(sw)
+  const state = stateTopic ? payloads[stateTopic] : null
   return state ?? payloads[sw.topic] ?? null
 }
 

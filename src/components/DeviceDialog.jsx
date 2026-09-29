@@ -3,7 +3,7 @@ import { Save } from 'lucide-react'
 import Modal from './Modal.jsx'
 import Field, { inputClass, noAuto } from './Field.jsx'
 import ConfirmButton from './ConfirmButton.jsx'
-import { topicSlug } from '../lib/rooms.js'
+import { deriveStateTopic, topicSlug } from '../lib/rooms.js'
 
 // Add a device to a room (device = null) or edit / delete an existing one.
 export default function DeviceDialog({ open, room, device, existingCount, onClose, onSave, onDelete }) {
@@ -70,8 +70,8 @@ export default function DeviceDialog({ open, room, device, existingCount, onClos
         <Field label="Command topic" hint="ON/OFF commands are published here (retained).">
           <input className={inputClass} value={form.topic} onChange={set('topic')} placeholder="home/livingroom/light1" {...noAuto} />
         </Field>
-        <Field label="State topic (optional)" hint="Where the device reports its real state. Leave empty if it only listens on the command topic.">
-          <input className={inputClass} value={form.stateTopic} onChange={set('stateTopic')} placeholder="home/livingroom/light1/status" {...noAuto} />
+        <Field label="State topic (optional)" hint="Where the device reports its real state. Leave empty to use the command topic with /control/ changed to /status/.">
+          <input className={inputClass} value={form.stateTopic} onChange={set('stateTopic')} placeholder={deriveStateTopic(form.topic) || 'home/livingroom/light1/status'} {...noAuto} />
         </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="ON payload">
