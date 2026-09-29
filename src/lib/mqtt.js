@@ -110,6 +110,7 @@ class MqttClient {
     this.buf = new Uint8Array(0)
     this.subs = new Map()
     this.lastPayload = loadStates()
+    this.lastAt = new Map() // when each payload arrived live; 0 / missing = retained or cached (age unknown)
     this.statusListeners = new Set()
     this.packetId = 1
     this.retryCount = 0
@@ -147,6 +148,10 @@ class MqttClient {
 
   getLast(topic) {
     return this.lastPayload.has(topic) ? this.lastPayload.get(topic) : null
+  }
+
+  getLastAt(topic) {
+    return this.lastAt.get(topic) || 0
   }
 
   connect(config) {
@@ -366,12 +371,13 @@ class MqttClient {
           try { this.ws && this.ws.send(pubackPacket(id)) } catch { /* ignore */ }
         }
       }
-      this._deliver(topic, new TextDecoder().decode(body.slice(offset)))
+      this._deliver(topic, new TextDecoder().decode(body.slice(offset)), (header & 1) === 1)
     }
   }
 
-  _deliver(topic, message) {
+  _deliver(topic, message, retained = false) {
     this.lastPayload.set(topic, message)
+    this.lastAt.set(topic, retained ? 0 : Date.now())
     // Light states are cached for the next visit; the app's own config topic is not.
     if (!topic.startsWith('lightnest/')) saveStates(this.lastPayload)
     for (const [filter, set] of this.subs) {

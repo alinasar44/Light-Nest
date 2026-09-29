@@ -16,7 +16,7 @@ export default function LightSwitch({ sw, payload, connected, onEdit }) {
   }, [on])
 
   const toggle = () => {
-    if (connected) mqtt.publish(sw.topic, on ? sw.off : sw.on, { retain: true })
+    if (connected) mqtt.publish(sw.topic, on ? sw.off : sw.on)
   }
 
   return (

@@ -288,14 +288,15 @@ export function useMqttStatus() {
   return { status, lastError }
 }
 
-// Live payload for each topic, keyed by topic.
+// Live payload for each topic, keyed by topic: { value, at } where at = 0 for retained / cached values.
 export function useTopicPayloads(topics) {
   const key = [...new Set(topics.filter(Boolean))].sort().join('\n')
   const [payloads, setPayloads] = useState({})
   useEffect(() => {
     const list = key ? key.split('\n') : []
-    setPayloads(Object.fromEntries(list.map((t) => [t, mqtt.getLast(t)])))
-    const offs = list.map((t) => mqtt.onMessage(t, (_topic, message) => setPayloads((p) => ({ ...p, [t]: message }))))
+    const entry = (t) => ({ value: mqtt.getLast(t), at: mqtt.getLastAt(t) })
+    setPayloads(Object.fromEntries(list.map((t) => [t, entry(t)])))
+    const offs = list.map((t) => mqtt.onMessage(t, () => setPayloads((p) => ({ ...p, [t]: entry(t) }))))
     return () => offs.forEach((off) => off())
   }, [key])
   return payloads

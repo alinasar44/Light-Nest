@@ -75,11 +75,16 @@ export function switchTopics(sw) {
   return [stateTopicOf(sw), sw.topic].filter(Boolean)
 }
 
-// Current payload for a switch: the device's reported state wins, the last (retained) command is the fallback.
+// Current payload for a switch: whichever of the device's state and the last command is newest.
+// A command sent from here shows right away, so the next tap sends the opposite even when the device's
+// reported state was stale; the device's answer then replaces it. On ties (retained / cached) the device wins.
 export function switchPayload(payloads, sw) {
   const stateTopic = stateTopicOf(sw)
   const state = stateTopic ? payloads[stateTopic] : null
-  return state ?? payloads[sw.topic] ?? null
+  const command = payloads[sw.topic]
+  if (state?.value == null) return command?.value ?? null
+  if (command?.value == null) return state.value
+  return command.at > state.at ? command.value : state.value
 }
 
 export function lightCountLabel(n) {

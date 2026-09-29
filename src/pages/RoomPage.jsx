@@ -112,7 +112,7 @@ export default function RoomPage() {
         </div>
 
         <p className="mt-8 text-[11px] text-gray-600 leading-relaxed">
-          Tapping a switch publishes the configured ON/OFF payload (retained) to its command topic. The state shown comes
+          Tapping a switch publishes the configured ON/OFF payload to its command topic. The state shown comes
           from the device's state topic when one is set, otherwise from the last command.
         </p>
       </div>
