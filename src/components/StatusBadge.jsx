@@ -1,4 +1,5 @@
-import { useMqttStatus } from '../lib/settings.jsx'
+import { RotateCw } from 'lucide-react'
+import { useMqttStatus, useSettings } from '../lib/settings.jsx'
 
 const VARIANTS = {
   connected: {
@@ -23,7 +24,9 @@ const VARIANTS = {
 
 export default function StatusBadge() {
   const { status, lastError } = useMqttStatus()
+  const { reconnect } = useSettings()
   const v = VARIANTS[status] || VARIANTS.offline
+  const busy = status === 'connecting'
   return (
     <div className="flex items-center gap-2">
       {status === 'offline' && lastError && (
@@ -33,6 +36,16 @@ export default function StatusBadge() {
         <span className={`w-1.5 h-1.5 rounded-full ${v.dot}`} />
         {v.label}
       </span>
+      <button
+        type="button"
+        onClick={reconnect}
+        disabled={busy}
+        title="Reconnect"
+        aria-label="Reconnect to broker"
+        className="w-8 h-8 rounded-full border border-white/10 bg-white/5 hover:bg-white/10 text-gray-400 hover:text-gray-100 flex items-center justify-center transition-colors active:scale-95 disabled:cursor-not-allowed"
+      >
+        <RotateCw className={`w-3.5 h-3.5 ${busy ? 'animate-spin' : ''}`} />
+      </button>
     </div>
   )
 }
