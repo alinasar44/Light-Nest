@@ -1,4 +1,5 @@
-import { RotateCw } from 'lucide-react'
+import { Loader2, Plug, Unplug } from 'lucide-react'
+import { mqtt } from '../lib/mqtt.js'
 import { useMqttStatus, useSettings } from '../lib/settings.jsx'
 
 const VARIANTS = {
@@ -27,6 +28,9 @@ export default function StatusBadge() {
   const { reconnect } = useSettings()
   const v = VARIANTS[status] || VARIANTS.offline
   const busy = status === 'connecting'
+  const connected = status === 'connected'
+  const Icon = busy ? Loader2 : connected ? Unplug : Plug
+  const action = connected ? 'Disconnect' : 'Reconnect'
   return (
     <div className="flex items-center gap-2">
       {status === 'offline' && lastError && (
@@ -38,13 +42,17 @@ export default function StatusBadge() {
       </span>
       <button
         type="button"
-        onClick={reconnect}
+        onClick={connected ? () => mqtt.disconnect() : reconnect}
         disabled={busy}
-        title="Reconnect"
-        aria-label="Reconnect to broker"
-        className="w-8 h-8 rounded-full border border-white/10 bg-white/5 hover:bg-white/10 text-gray-400 hover:text-gray-100 flex items-center justify-center transition-colors active:scale-95 disabled:cursor-not-allowed"
+        title={action}
+        aria-label={connected ? 'Disconnect from broker' : 'Reconnect to broker'}
+        className={`w-8 h-8 rounded-full border flex items-center justify-center transition-colors active:scale-95 disabled:cursor-not-allowed ${
+          connected
+            ? 'border-white/10 bg-white/5 hover:bg-rose-400/10 hover:border-rose-400/30 text-gray-400 hover:text-rose-300'
+            : 'border-sky-400/30 bg-sky-400/10 hover:bg-sky-400/15 text-sky-200'
+        }`}
       >
-        <RotateCw className={`w-3.5 h-3.5 ${busy ? 'animate-spin' : ''}`} />
+        <Icon className={`w-3.5 h-3.5 ${busy ? 'animate-spin' : ''}`} />
       </button>
     </div>
   )

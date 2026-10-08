@@ -2,6 +2,7 @@
 
 const MAX_RETRY_MS = 15000
 const CONNECT_TIMEOUT_MS = 15000
+const CHECK_INTERVAL_MS = 15000
 const STATES_KEY = 'lightnest.states'
 
 // Last payload seen per topic, kept across reloads so each light shows its last known state.
@@ -115,7 +116,8 @@ class MqttClient {
     this.packetId = 1
     this.retryCount = 0
     this.retryTimer = null
-    this.pingTimer = null
+    this.checkTimer = null
+    this.awaitingPong = false
     this.wantClose = false
   }
 
@@ -161,10 +163,12 @@ class MqttClient {
     this._clearRetry()
     this._teardown()
     this._open()
+    this._startCheck()
   }
 
   disconnect() {
     this.wantClose = true
+    this._stopCheck()
     this._clearRetry()
     try {
       if (this.ws && this.ws.readyState === WebSocket.OPEN) this.ws.send(new Uint8Array([224, 0]))
@@ -197,7 +201,7 @@ class MqttClient {
   }
 
   _teardown() {
-    this._stopPing()
+    this.awaitingPong = false
     clearTimeout(this.connectTimer)
     if (this.ws) {
       const ws = this.ws
@@ -259,7 +263,7 @@ class MqttClient {
       if (this.status !== 'connected' && !this.lastError) this.lastError = 'Cannot reach broker'
     }
     ws.onclose = () => {
-      this._stopPing()
+      this.awaitingPong = false
       clearTimeout(this.connectTimer)
       if (this.ws === ws) this.ws = null
       if (this.wantClose) {
@@ -282,23 +286,44 @@ class MqttClient {
     }, delay)
   }
 
-  _startPing() {
-    this._stopPing()
-    this.pingTimer = setInterval(() => {
-      try {
-        if (this._isOpen()) this.ws.send(new Uint8Array([192, 0]))
-      } catch { /* ignore */ }
-    }, 30000)
+  // Runs from connect() until disconnect(): pings the broker and expects an answer before the next round.
+  _startCheck() {
+    this._stopCheck()
+    this.checkTimer = setInterval(() => this._check(), CHECK_INTERVAL_MS)
   }
 
-  _stopPing() {
-    if (this.pingTimer) {
-      clearInterval(this.pingTimer)
-      this.pingTimer = null
+  _stopCheck() {
+    if (this.checkTimer) {
+      clearInterval(this.checkTimer)
+      this.checkTimer = null
     }
   }
 
+  _check() {
+    if (this.wantClose) return
+    if (this.status === 'connected') {
+      // A dead link (Wi-Fi dropped, phone slept) often never fires onclose; a missed ping answer catches it.
+      if (!this._isOpen() || this.awaitingPong || navigator.onLine === false) return this._lost()
+      try {
+        this.ws.send(new Uint8Array([192, 0]))
+        this.awaitingPong = true
+      } catch {
+        this._lost()
+      }
+    } else if (this.status === 'offline' && !this.retryTimer && this.config?.url) {
+      this._open()
+    }
+  }
+
+  _lost() {
+    this.lastError = 'Connection lost'
+    this._teardown()
+    this._setStatus('offline')
+    this._scheduleRetry()
+  }
+
   _onData(data) {
+    this.awaitingPong = false // anything from the broker proves the link is alive
     const chunk = new Uint8Array(data)
     const merged = new Uint8Array(this.buf.length + chunk.length)
     merged.set(this.buf)
@@ -343,7 +368,6 @@ class MqttClient {
         this.retryCount = 0
         this.lastError = ''
         this._setStatus('connected')
-        this._startPing()
         if (this._isOpen()) {
           for (const topic of this.subs.keys()) {
             try { this.ws.send(subscribePacket(this.packetId++, topic)) } catch { /* ignore */ }

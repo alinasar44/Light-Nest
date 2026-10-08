@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { HashRouter, Navigate, NavLink, Route, Routes, useNavigate } from 'react-router-dom'
 import { LogOut, PlugZap, Plus, Settings, ShieldCheck, User, Zap } from 'lucide-react'
 import StatusBadge from './components/StatusBadge.jsx'
+import ConnectionAlert from './components/ConnectionAlert.jsx'
 import RoomDialog from './components/RoomDialog.jsx'
 import RoomPage from './pages/RoomPage.jsx'
 import SettingsPage from './pages/SettingsPage.jsx'
@@ -173,6 +174,7 @@ function Layout() {
         </div>
       </nav>
 
+      <ConnectionAlert />
       <RoomDialog open={isAdmin && addingRoom} onClose={() => setAddingRoom(false)} onSave={(room) => navigate(`/room/${addRoom(room)}`)} />
     </div>
   )
