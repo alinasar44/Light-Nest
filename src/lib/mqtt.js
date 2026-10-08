@@ -178,11 +178,12 @@ class MqttClient {
     this._setStatus('offline')
   }
 
-  publish(topic, message, { retain = false } = {}) {
+  // echo: show the message here right away, without waiting for the broker to send it back.
+  publish(topic, message, { retain = false, echo = true } = {}) {
     if (!this._isOpen() || this.status !== 'connected') return false
     try {
       this.ws.send(publishPacket(topic, message, retain))
-      this._deliver(topic, String(message))
+      if (echo) this._deliver(topic, String(message))
       return true
     } catch {
       return false

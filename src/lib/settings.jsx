@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { DEFAULT_BROKER, DEFAULT_HOME_ID, configTopic } from '../config.js'
 import { useAuth } from './auth.jsx'
+import { devices } from './devices.js'
 import { buildBrokerUrl, mqtt } from './mqtt.js'
 import { newId } from './rooms.js'
 
@@ -195,6 +196,14 @@ export function SettingsProvider({ children }) {
       commit({ ...local, rooms: data.rooms, switches: data.switches.map(cleanSwitch), configUpdatedAt: version }, { share: false })
     })
   }, [homeId, loading, commit])
+
+  // Keep checking that the boards behind the switches still answer.
+  const switches = settings.switches
+  useEffect(() => {
+    if (loading) return
+    devices.watch(switches || [])
+    return () => devices.stop()
+  }, [switches, loading])
 
   // Full save from the Settings page (admin): stores everything, reconnects, shares rooms / devices.
   const save = useCallback(

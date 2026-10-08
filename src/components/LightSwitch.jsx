@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react'
 import { Lightbulb, Pencil } from 'lucide-react'
+import { useDeviceOnline } from '../lib/devices.js'
 import { mqtt } from '../lib/mqtt.js'
 import { isOn } from '../lib/rooms.js'
 import StatusLed from './StatusLed.jsx'
 
 export default function LightSwitch({ sw, payload, connected, onEdit }) {
   const [bump, setBump] = useState(false)
+  const deviceOffline = useDeviceOnline(sw) === false && connected
+  const usable = connected && !deviceOffline
   const on = isOn(payload, sw)
   const ledState = payload == null ? 'unknown' : on ? 'on' : 'off'
 
@@ -16,7 +19,7 @@ export default function LightSwitch({ sw, payload, connected, onEdit }) {
   }, [on])
 
   const toggle = () => {
-    if (connected) mqtt.publish(sw.topic, on ? sw.off : sw.on)
+    if (usable) mqtt.publish(sw.topic, on ? sw.off : sw.on)
   }
 
   return (
@@ -44,10 +47,14 @@ export default function LightSwitch({ sw, payload, connected, onEdit }) {
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2 min-w-0">
-                <StatusLed state={ledState} stale={!connected} />
+                <StatusLed state={ledState} stale={!usable} />
                 <div className="font-display font-semibold text-base text-gray-100 truncate">{sw.name || 'Light'}</div>
               </div>
-              <div className={`text-xs font-semibold mt-0.5 ${on ? 'text-amber-300' : 'text-gray-500'}`}>{on ? 'ON' : 'OFF'}</div>
+              {deviceOffline ? (
+                <div className="text-xs font-semibold mt-0.5 text-rose-300">Device offline</div>
+              ) : (
+                <div className={`text-xs font-semibold mt-0.5 ${on ? 'text-amber-300' : 'text-gray-500'}`}>{on ? 'ON' : 'OFF'}</div>
+              )}
             </div>
           </div>
           <div className="mt-4 flex items-center gap-2 min-w-0">
@@ -67,11 +74,11 @@ export default function LightSwitch({ sw, payload, connected, onEdit }) {
         </div>
         <button
           onClick={toggle}
-          disabled={!connected}
+          disabled={!usable}
           aria-label={`Toggle ${sw.name}`}
           className={`relative shrink-0 w-[72px] h-[38px] rounded-full border transition-all duration-300 ${
             on ? 'bg-amber-400 border-amber-300 shadow-[0_0_16px_rgba(251,191,36,0.5)]' : 'bg-white/8 border-white/15'
-          } ${connected ? 'active:scale-95 cursor-pointer' : 'opacity-40 cursor-not-allowed'}`}
+          } ${usable ? 'active:scale-95 cursor-pointer' : 'opacity-40 cursor-not-allowed'}`}
         >
           <span
             className={`absolute top-[3px] w-[30px] h-[30px] rounded-full bg-white shadow-md transition-all duration-300 ${
