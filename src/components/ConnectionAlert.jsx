@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { Wifi, WifiOff, X } from 'lucide-react'
 import { devices } from '../lib/devices.js'
 import { mqtt } from '../lib/mqtt.js'
-import { askNotifyPermission, needsNotifyPermission, notify } from '../lib/notify.js'
-import { useMqttStatus } from '../lib/settings.jsx'
+import { askNotifyPermission, needsNotifyPermission, notify, syncPush } from '../lib/notify.js'
+import { useMqttStatus, useSettings } from '../lib/settings.jsx'
 
 const TONES = {
   bad: { Icon: WifiOff, box: 'border-rose-400/30 bg-[#1a0d14]/95', text: 'text-rose-200', hideAfter: 8000 },
@@ -20,12 +20,23 @@ export default function ConnectionAlert() {
   const prev = useRef(status)
   const [alert, setAlert] = useState(null)
 
+  const { settings, loading } = useSettings()
+  const [permission, setPermission] = useState(0)
+
   // Browsers only allow asking for notification permission from a tap.
   useEffect(() => {
     if (!needsNotifyPermission()) return
-    document.addEventListener('pointerdown', askNotifyPermission, { once: true })
-    return () => document.removeEventListener('pointerdown', askNotifyPermission)
+    const ask = () => askNotifyPermission().then(() => setPermission((n) => n + 1))
+    document.addEventListener('pointerdown', ask, { once: true })
+    return () => document.removeEventListener('pointerdown', ask)
   }, [])
+
+  // Keep the background monitor watching the current boards for this phone.
+  useEffect(() => {
+    if (loading) return
+    const timer = setTimeout(() => syncPush(settings), 1500)
+    return () => clearTimeout(timer)
+  }, [loading, permission, settings.host, settings.port, settings.path, settings.username, settings.password, settings.homeId, settings.switches])
 
   useEffect(() => {
     const was = prev.current
@@ -33,7 +44,7 @@ export default function ConnectionAlert() {
     if (status === 'connected') return setAlert((a) => (a === BROKER_LOST ? BROKER_BACK : a))
     if (was !== 'connected' || status !== 'offline' || mqtt.wantClose) return
     setAlert(BROKER_LOST)
-    notify('LightNest disconnected', { body: BROKER_LOST.body, tag: 'lightnest-connection', icon: './favicon.svg' })
+    notify('LightNest disconnected', { body: BROKER_LOST.body, tag: 'lightnest-connection' })
   }, [status])
 
   useEffect(
@@ -43,7 +54,7 @@ export default function ConnectionAlert() {
         if (online === false) {
           const body = `${list} stopped answering. Check its power and internet.`
           setAlert({ id: key, tone: 'bad', title: 'Device offline', body })
-          notify('LightNest: device offline', { body, tag: 'lightnest-device-' + key, icon: './favicon.svg' })
+          notify('LightNest: device offline', { body, tag: 'lightnest-device-' + key })
         } else if (online && was === false) {
           setAlert({ id: key, tone: 'good', title: 'Device back online', body: `${list} is answering again.` })
         }

@@ -1,0 +1,17 @@
+name = "lightnest-monitor"
+main = "src/index.js"
+compatibility_date = "2025-09-01"
+
+[vars]
+# Public half of the push key pair; the same value is in src/config.js of the app.
+VAPID_PUBLIC_KEY = "BGlIJqMZknspWbAKRuzKLo_xUa780eQMCL5ThNOWZa6a4DtM6tYh5Ex6-ckxQMi4pyDec0ih4ozl1iHaXjwrQhk"
+VAPID_SUBJECT = "https://github.com/alinasar44/Light-Nest"
+# The private half is a secret: npx wrangler secret put VAPID_PRIVATE_KEY
+
+[[durable_objects.bindings]]
+name = "HOMES"
+class_name = "HomeMonitor"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["HomeMonitor"]

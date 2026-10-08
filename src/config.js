@@ -18,6 +18,11 @@ export function configTopic(homeId) {
   return `lightnest/${(homeId || DEFAULT_HOME_ID).trim()}/config`
 }
 
+// Background monitor (worker/): pushes a notification when a device goes offline, even with the app closed.
+// Leave the address empty to turn it off. The key is the public half of the monitor's push key pair.
+export const PUSH_SERVER = (import.meta.env.VITE_PUSH_SERVER || '').replace(/\/+$/, '')
+export const VAPID_PUBLIC_KEY = 'BGlIJqMZknspWbAKRuzKLo_xUa780eQMCL5ThNOWZa6a4DtM6tYh5Ex6-ckxQMi4pyDec0ih4ozl1iHaXjwrQhk'
+
 // Accounts. Passwords are stored as sha256('lightnest:' + password), never in plain text.
 export const ACCOUNTS = [
   { username: 'admin', role: 'admin', hash: '4817b05137effca3270646a0461f8a90dfb413d769441f45bf938761525fe02e' },
